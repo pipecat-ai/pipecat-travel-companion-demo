@@ -30,58 +30,39 @@ load_dotenv(override=True)
 logger.remove(0)
 logger.add(sys.stderr, level="DEBUG")
 
-# TODO: just keeping it here as example, need to remove it.
-# Type definitions for API responses
-class MovieBasic(TypedDict):
-    id: int
-    title: str
-    overview: str
-
-class MoviesResult():
-    movies: List[MovieBasic]
-
-class ErrorResult():
-    status: Literal["error"]
-    error: str
-
 # Function handlers for the LLM
-
 async def get_movies(function_name, tool_call_id, args, llm, context, result_callback):
     """Handler for fetching current movies."""
     logger.debug("Calling TMDB API: get_movies")
-    async with aiohttp.ClientSession() as session:
-        try:
-            movies: List[MovieBasic] = [
-                {
-                    "id": 1,
-                    "title": "Inception",
-                    "overview": "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a CEO."
-                },
-                {
-                    "id": 2,
-                    "title": "The Matrix",
-                    "overview": "A computer hacker learns from mysterious rebels about the true nature of his reality and his role in the war against its controllers."
-                },
-            ]
-            await result_callback(movies=movies)
-        except Exception as e:
-            await result_callback({"success": False, "error": str(e)})
+    try:
+        await result_callback([
+            {
+                "id": 1,
+                "title": "Inception",
+                "overview": "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a CEO."
+            },
+            {
+                "id": 2,
+                "title": "The Matrix",
+                "overview": "A computer hacker learns from mysterious rebels about the true nature of his reality and his role in the war against its controllers."
+            },
+        ])
+    except Exception as e:
+        await result_callback({"success": False, "error": str(e)})
 
 async def get_upcoming_movies(function_name, tool_call_id, args, llm, context, result_callback):
     """Handler for fetching upcoming movies."""
     logger.debug("Calling TMDB API: get_upcoming_movies")
-    async with aiohttp.ClientSession() as session:
-        try:
-            movies: List[MovieBasic] = [
-                {
-                    "id": 3,
-                    "title": "The Shawshank Redemption",
-                    "overview": "Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency."
-                },
-            ]
-            await result_callback(MoviesResult(movies=movies))
-        except Exception as e:
-            await result_callback({"success": False, "error": str(e)})
+    try:
+        await result_callback([
+            {
+                "id": 3,
+                "title": "The Shawshank Redemption",
+                "overview": "Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency."
+            },
+        ])
+    except Exception as e:
+        await result_callback({"success": False, "error": str(e)})
 
 tools = [
     {
