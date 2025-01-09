@@ -23,7 +23,6 @@ from pipecat.services.gemini_multimodal_live.gemini import GeminiMultimodalLiveL
 from pipecat.transports.services.daily import DailyParams, DailyTransport
 
 sys.path.append(str(Path(__file__).parent.parent))
-from pipecat_flows import FlowArgs, FlowConfig, FlowManager, FlowResult
 from runner import configure
 
 load_dotenv(override=True)
@@ -38,16 +37,16 @@ class MovieBasic(TypedDict):
     title: str
     overview: str
 
-class MoviesResult(FlowResult):
+class MoviesResult():
     movies: List[MovieBasic]
 
-class ErrorResult(FlowResult):
+class ErrorResult():
     status: Literal["error"]
     error: str
 
 # Function handlers for the LLM
-# These are node functions that perform operations without changing conversation state
-async def get_movies() -> Union[MoviesResult, ErrorResult]:
+
+async def get_movies(function_name, tool_call_id, args, llm, context, result_callback):
     """Handler for fetching current movies."""
     logger.debug("Calling TMDB API: get_movies")
     async with aiohttp.ClientSession() as session:
@@ -64,12 +63,11 @@ async def get_movies() -> Union[MoviesResult, ErrorResult]:
                     "overview": "A computer hacker learns from mysterious rebels about the true nature of his reality and his role in the war against its controllers."
                 },
             ]
-            return MoviesResult(movies=movies)
+            await result_callback(movies=movies)
         except Exception as e:
-            logger.error(f"TMDB API Error: {e}")
-            return ErrorResult(error="Failed to fetch movies")
+            await result_callback({"success": False, "error": str(e)})
 
-async def get_upcoming_movies() -> Union[MoviesResult, ErrorResult]:
+async def get_upcoming_movies(function_name, tool_call_id, args, llm, context, result_callback):
     """Handler for fetching upcoming movies."""
     logger.debug("Calling TMDB API: get_upcoming_movies")
     async with aiohttp.ClientSession() as session:
@@ -81,53 +79,36 @@ async def get_upcoming_movies() -> Union[MoviesResult, ErrorResult]:
                     "overview": "Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency."
                 },
             ]
-            return MoviesResult(movies=movies)
+            await result_callback(MoviesResult(movies=movies))
         except Exception as e:
-            logger.error(f"TMDB API Error: {e}")
-            return ErrorResult(error="Failed to fetch upcoming movies")
+            await result_callback({"success": False, "error": str(e)})
 
-# Flow configuration
-flow_config: FlowConfig = {
-    "initial_node": "greeting",
-    "nodes": {
-        "greeting": {
-            "role_messages": [
-                {
-                    "role": "system",
-                    "content": "You are a friendly movie expert. Your responses will be converted to audio, so avoid special characters. Always use the available functions to progress the conversation naturally.",
-                }
-            ],
-            "task_messages": [
-                {
-                    "role": "system",
-                    "content": """Start by greeting the user. Help the user learn more about movies. You can:
+tools = [
+    {
+        "function_declarations": [
+            {
+                "name": "get_current_movies",
+                "description": "Show current movies in theaters",
+                "parameters": None,  # Specify None for no parameters
+            },
+            {
+                "name": "get_upcoming_movies",
+                "description": "Show movies coming soon",
+                "parameters": None,  # Specify None for no parameters,
+            }
+        ]
+    }
+]
+
+system_instruction = """
+You are a friendly movie expert. Your responses will be converted to audio, so avoid special characters. Always use the available functions to progress the conversation naturally.
+
+Start by greeting the user. Help the user learn more about movies. You can:
 - Use get_current_movies to see what's playing now
 - Use get_upcoming_movies to see what's coming soon
 
-After showing details or recommendations, ask if they'd like to explore another movie or end the conversation.""",
-                }
-            ],
-            "functions": [
-                {
-                    "function_declarations": [
-                        {
-                            "name": "get_current_movies",
-                            "handler": get_movies,
-                            "description": "Show current movies in theaters",
-                            "parameters": None,  # Specify None for no parameters
-                        },
-                        {
-                            "name": "get_upcoming_movies",
-                            "handler": get_upcoming_movies,
-                            "description": "Show movies coming soon",
-                            "parameters": None,  # Specify None for no parameters,
-                        }
-                    ]
-                }
-            ],
-        }
-    },
-}
+After showing details or recommendations, ask if they'd like to explore another movie or end the conversation.
+"""
 
 
 async def main():
@@ -153,9 +134,15 @@ async def main():
             voice_id="Puck",  # Aoede, Charon, Fenrir, Kore, Puck
             transcribe_user_audio=True,
             transcribe_model_audio=True,
+            system_instruction=system_instruction,
+            tools=tools,
         )
+        llm.register_function("get_current_movies", get_movies)
+        llm.register_function("get_upcoming_movies", get_upcoming_movies)
 
-        context = OpenAILLMContext()
+        context = OpenAILLMContext(
+            [{"role": "user", "content": "Say hello."}],
+        )
         context_aggregator = llm.create_context_aggregator(context)
 
         # TODO: add the RTVI events for Pipecat client UI
@@ -172,13 +159,9 @@ async def main():
 
         task = PipelineTask(pipeline, PipelineParams(allow_interruptions=True))
 
-        # Initialize flow manager
-        flow_manager = FlowManager(task=task, llm=llm, flow_config=flow_config)
-
         @transport.event_handler("on_first_participant_joined")
         async def on_first_participant_joined(transport, participant):
             await transport.capture_participant_transcription(participant["id"])
-            await flow_manager.initialize()
             await task.queue_frames([context_aggregator.user().get_context_frame()])
 
         runner = PipelineRunner()
