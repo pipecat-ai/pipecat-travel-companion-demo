@@ -50,43 +50,25 @@ async def get_movies(function_name, tool_call_id, args, llm, context, result_cal
     except Exception as e:
         await result_callback({"success": False, "error": str(e)})
 
-async def get_upcoming_movies(function_name, tool_call_id, args, llm, context, result_callback):
-    """Handler for fetching upcoming movies."""
-    logger.debug("Calling TMDB API: get_upcoming_movies")
-    try:
-        await result_callback([
-            {
-                "id": 3,
-                "title": "The Shawshank Redemption",
-                "overview": "Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency."
-            },
-        ])
-    except Exception as e:
-        await result_callback({"success": False, "error": str(e)})
-
 tools = [
     {
         "function_declarations": [
             {
-                "name": "get_current_movies",
+                "name": "get_favorite_movies",
                 "description": "Show current movies in theaters",
                 "parameters": None,  # Specify None for no parameters
-            },
-            {
-                "name": "get_upcoming_movies",
-                "description": "Show movies coming soon",
-                "parameters": None,  # Specify None for no parameters,
             }
-        ]
+        ],
+        'google_search': {}
     }
 ]
 
 system_instruction = """
-You are a friendly movie expert. Your responses will be converted to audio, so avoid special characters. Always use the available functions to progress the conversation naturally.
+You are a travel companion assistant. Your responses will be converted to audio, so avoid special characters. Always use the available functions to progress the conversation naturally.
 
-Start by greeting the user. Help the user learn more about movies. You can:
-- Use get_current_movies to see what's playing now
-- Use get_upcoming_movies to see what's coming soon
+Start by greeting the user. You can:
+- Use get_favorite_movies to see what are the user's favorite movies.
+- Search on Google for more up to date information about movies.
 
 After showing details or recommendations, ask if they'd like to explore another movie or end the conversation.
 """
@@ -118,8 +100,7 @@ async def main():
             system_instruction=system_instruction,
             tools=tools,
         )
-        llm.register_function("get_current_movies", get_movies)
-        llm.register_function("get_upcoming_movies", get_upcoming_movies)
+        llm.register_function("get_favorite_movies", get_movies)
 
         context = OpenAILLMContext(
             [{"role": "user", "content": "Say hello."}],
