@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD 2-Clause License
 #
+# TODO: Fix the description.
 # Movie Explorer Example
 #
 # This example demonstrates how to create a conversational movie exploration bot using:
@@ -37,11 +38,8 @@ from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
-from pipecat.services.cartesia import CartesiaTTSService
-from pipecat.services.deepgram import DeepgramSTTService
-from pipecat.services.google import GoogleLLMService
+from pipecat.services.gemini_multimodal_live.gemini import GeminiMultimodalLiveLLMService
 from pipecat.transports.services.daily import DailyParams, DailyTransport
-from pipecat.utils.text.markdown_text_filter import MarkdownTextFilter
 
 sys.path.append(str(Path(__file__).parent.parent))
 from pipecat_flows import FlowArgs, FlowConfig, FlowManager, FlowResult
@@ -413,11 +411,11 @@ After showing details or recommendations, ask if they'd like to explore another 
 async def main():
     """Main function to set up and run the movie explorer bot."""
     async with aiohttp.ClientSession() as session:
-        (room_url, _) = await configure(session)
+        (room_url, token) = await configure(session)
 
         transport = DailyTransport(
             room_url,
-            None,
+            token,
             "Movie Explorer Bot",
             DailyParams(
                 audio_out_enabled=True,
@@ -427,25 +425,24 @@ async def main():
             ),
         )
 
-        stt = DeepgramSTTService(api_key=os.getenv("DEEPGRAM_API_KEY"))
-        tts = CartesiaTTSService(
-            api_key=os.getenv("CARTESIA_API_KEY"),
-            voice_id="c45bc5ec-dc68-4feb-8829-6e6b2748095d",  # Movieman
-            text_filter=MarkdownTextFilter(),
+        # Initialize the Gemini Multimodal Live model
+        llm = GeminiMultimodalLiveLLMService(
+            api_key=os.getenv("GOOGLE_API_KEY"),
+            voice_id="Puck",  # Aoede, Charon, Fenrir, Kore, Puck
+            transcribe_user_audio=True,
+            transcribe_model_audio=True,
         )
-        # TODO
-        llm = GoogleLLMService(api_key=os.getenv("GOOGLE_API_KEY"), model="gemini-2.0-flash-exp")
 
         context = OpenAILLMContext()
         context_aggregator = llm.create_context_aggregator(context)
 
+        # TODO: add the RTVI events for Pipecat client UI
+
         pipeline = Pipeline(
             [
                 transport.input(),  # Transport user input
-                stt,  # STT
                 context_aggregator.user(),  # User responses
                 llm,  # LLM
-                tts,  # TTS
                 transport.output(),  # Transport bot output
                 context_aggregator.assistant(),  # Assistant spoken responses
             ]
@@ -454,7 +451,7 @@ async def main():
         task = PipelineTask(pipeline, PipelineParams(allow_interruptions=True))
 
         # Initialize flow manager
-        flow_manager = FlowManager(task=task, llm=llm, tts=tts, flow_config=flow_config)
+        flow_manager = FlowManager(task=task, llm=llm, flow_config=flow_config)
 
         @transport.event_handler("on_first_participant_joined")
         async def on_first_participant_joined(transport, participant):
