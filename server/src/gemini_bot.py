@@ -17,9 +17,6 @@ from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
-from pipecat.services.cartesia import CartesiaTTSService
-from pipecat.services.deepgram import DeepgramSTTService
-from pipecat.services.google import GoogleLLMService
 from pipecat.services.gemini_multimodal_live.gemini import GeminiMultimodalLiveLLMService
 from pipecat.transports.services.daily import DailyParams, DailyTransport
 from pipecat.frames.frames import (
@@ -61,6 +58,9 @@ async def set_restaurant_location(function_name, tool_call_id, arguments, llm, c
     logger.debug(f"Calling set_restaurant_location with arguments {restaurant}: {lat},{lon}")
     await result_callback({})
 
+# Search tool can only be used together with other tools when using the Multimodal Live API
+# Otherwise it should be used alone.
+search_tool = {'google_search': {}}
 tools = [
     {
         "function_declarations": [
@@ -91,9 +91,9 @@ tools = [
                     "required": ["restaurant", "lat", "lon"],
                 },
             },
-        ],
-        #'google_search': {}
-    }
+        ]
+    },
+    search_tool
 ]
 
 system_instruction = """
@@ -126,18 +126,12 @@ async def main():
             ),
         )
 
-        stt = DeepgramSTTService(api_key=os.getenv("DEEPGRAM_API_KEY"))
-
-        tts = CartesiaTTSService(
-            api_key=os.getenv("CARTESIA_API_KEY"),
-            voice_id="79a125e8-cd45-4c13-8a67-188112f4dd22",  # British Lady
-        )
-
-        #llm = GeminiMultimodalLiveLLMService(
-        llm = GoogleLLMService(
-            model="models/gemini-2.0-flash-exp",
+        # Initialize the Gemini Multimodal Live model
+        llm = GeminiMultimodalLiveLLMService(
             api_key=os.getenv("GOOGLE_API_KEY"),
             voice_id="Puck",  # Aoede, Charon, Fenrir, Kore, Puck
+            transcribe_user_audio=True,
+            transcribe_model_audio=True,
             system_instruction=system_instruction,
             tools=tools,
         )
@@ -181,12 +175,10 @@ async def main():
         pipeline = Pipeline(
             [
                 transport.input(),
-                stt,  # STT
                 rtvi,
                 context_aggregator.user(),
                 llm,
                 rtvi_bot_llm,
-                tts,  # TTS
                 rtvi_speaking,
                 rtvi_user_transcription,
                 rtvi_bot_transcription,
