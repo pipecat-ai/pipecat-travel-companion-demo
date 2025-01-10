@@ -184,11 +184,28 @@ extension CallContainerModel:RTVIClientDelegate, LLMHelperDelegate {
     }
     
     func onLLMFunctionCall(functionCallData: LLMFunctionCallData, onResult: ((Value) async -> Void)) async {
-        print("FF => onLLMFunctionCall \(functionCallData.functionName)")
-        //TODO: handle the different functions
-        await onResult(Value.object([
-            "lat": "-27.501604",
-            "lon": "-48.489933"
-        ]))
+        print("onLLMFunctionCall \(functionCallData.functionName)")
+        var result = Value.object([:])
+        if let selectedFunction = ToolsFunctions(rawValue: functionCallData.functionName) {
+            // Use a switch to handle the different enum cases
+            switch selectedFunction {
+            case .getMyCurrentLocation:
+                result = Value.object([
+                    "lat": "-27.501604",
+                    "lon": "-48.489933"
+                ])
+            case .setRestaurantLocation:
+                print("Restaurant location: \(functionCallData.args)")
+                // TODO: open Google Maps with the new location
+            }
+        } else {
+            print("Invalid function received \(functionCallData.functionName)")
+        }
+        await onResult(result)
     }
+}
+
+enum ToolsFunctions: String {
+    case getMyCurrentLocation = "get_my_current_location"
+    case setRestaurantLocation = "set_restaurant_location"
 }

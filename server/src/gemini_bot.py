@@ -39,27 +39,9 @@ load_dotenv(override=True)
 logger.remove(0)
 logger.add(sys.stderr, level="DEBUG")
 
-# Function handlers for the LLM
-# TODO: should refactor this function to retrieve from RTVI
-async def get_my_current_location(function_name, tool_call_id, args, llm, context, result_callback):
-    logger.debug("Calling get_my_current_location")
-    try:
-        await result_callback({
-            "lat": "-27.501604",
-            "lon": "-48.489933"
-        })
-    except Exception as e:
-        await result_callback({"success": False, "error": str(e)})
-
-async def set_restaurant_location(function_name, tool_call_id, arguments, llm, context, result_callback):
-    restaurant = arguments["restaurant"]
-    lat = arguments["lat"]
-    lon = arguments["lon"]
-    logger.debug(f"Calling set_restaurant_location with arguments {restaurant}: {lat},{lon}")
-    await result_callback({})
-
 # Search tool can only be used together with other tools when using the Multimodal Live API
 # Otherwise it should be used alone.
+# We are registering the tools here, but who are handling them is the RTVI client
 search_tool = {'google_search': {}}
 tools = [
     {
@@ -135,9 +117,6 @@ async def main():
             system_instruction=system_instruction,
             tools=tools,
         )
-        # local functions
-        #llm.register_function("get_my_current_location", get_my_current_location)
-        #llm.register_function("set_restaurant_location", set_restaurant_location)
 
         context = OpenAILLMContext(
             [{"role": "user", "content": """
