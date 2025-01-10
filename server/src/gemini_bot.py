@@ -8,8 +8,6 @@ import asyncio
 import os
 import sys
 from pathlib import Path
-from typing import List, Literal, TypedDict, Union
-
 import aiohttp
 from dotenv import load_dotenv
 from loguru import logger
@@ -21,6 +19,17 @@ from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.services.gemini_multimodal_live.gemini import GeminiMultimodalLiveLLMService
 from pipecat.transports.services.daily import DailyParams, DailyTransport
+from pipecat.frames.frames import (
+    EndFrame
+)
+from pipecat.processors.frameworks.rtvi import (
+    RTVIBotTranscriptionProcessor,
+    RTVIConfig,
+    RTVIMetricsProcessor,
+    RTVIProcessor,
+    RTVISpeakingProcessor,
+    RTVIUserTranscriptionProcessor,
+)
 
 sys.path.append(str(Path(__file__).parent.parent))
 from runner import configure
@@ -137,6 +146,9 @@ async def main():
 
         # TODO: add the RTVI events for Pipecat client UI
 
+        # Handles RTVI messages from the client
+        rtvi = RTVIProcessor(config=RTVIConfig(config=[]))
+
         pipeline = Pipeline(
             [
                 transport.input(),  # Transport user input
@@ -153,6 +165,15 @@ async def main():
         async def on_first_participant_joined(transport, participant):
             await transport.capture_participant_transcription(participant["id"])
             await task.queue_frames([context_aggregator.user().get_context_frame()])
+
+        @rtvi.event_handler("on_client_ready")
+        async def on_client_ready(rtvi):
+            await rtvi.set_bot_ready()
+
+        @transport.event_handler("on_participant_left")
+        async def on_participant_left(transport, participant, reason):
+            print(f"Participant left: {participant}")
+            await task.queue_frame(EndFrame())
 
         runner = PipelineRunner()
         await runner.run(task)

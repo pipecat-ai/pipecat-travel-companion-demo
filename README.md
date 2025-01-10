@@ -31,5 +31,5 @@ To run these examples:
 4. **Running**:
    ```bash
    cd server
-   python src/gemini_bot.py -u YOUR_DAILY_ROOM_URL
+   python src/server.py --host YOUR_IP
    ```
