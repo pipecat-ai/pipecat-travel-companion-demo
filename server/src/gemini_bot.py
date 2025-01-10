@@ -31,22 +31,14 @@ logger.remove(0)
 logger.add(sys.stderr, level="DEBUG")
 
 # Function handlers for the LLM
-async def get_movies(function_name, tool_call_id, args, llm, context, result_callback):
-    """Handler for fetching current movies."""
-    logger.debug("Calling TMDB API: get_movies")
+# TODO: should refactor this function to retrieve from RTVI
+async def get_my_current_location(function_name, tool_call_id, args, llm, context, result_callback):
+    logger.debug("Calling get_my_current_location")
     try:
-        await result_callback([
-            {
-                "id": 1,
-                "title": "Inception",
-                "overview": "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a CEO."
-            },
-            {
-                "id": 2,
-                "title": "The Matrix",
-                "overview": "A computer hacker learns from mysterious rebels about the true nature of his reality and his role in the war against its controllers."
-            },
-        ])
+        await result_callback({
+            "lat": "-27.501586",
+            "lon": "-48.489710"
+        })
     except Exception as e:
         await result_callback({"success": False, "error": str(e)})
 
@@ -54,31 +46,29 @@ tools = [
     {
         "function_declarations": [
             {
-                "name": "get_favorite_movies",
-                "description": "Show current movies in theaters",
+                "name": "get_my_current_location",
+                "description": "Retrieves the user current location",
                 "parameters": None,  # Specify None for no parameters
-            }
+            },
         ],
         'google_search': {}
     }
 ]
 
 system_instruction = """
-You are an expert at providing the most recent news from any place. Your responses will be converted to audio, so avoid using special characters or overly complex formatting. 
-
-Always use the google search API to retrieve the latest news. You must also use it to check which day is today.
+You are a travel companion. Your responses will be converted to audio, so avoid using special characters or overly complex formating. 
+Always use the google_search API to check which day is today. If there is a discrepancy always use the most recent date.
 
 You can:
-- Use the Google search API to check the current date.
-- Provide the most recent and relevant news from any place by using the google search API.
+- Use get_my_current_location to retrieve my current location. When speaking to the user, inform them about the neighborhood and city they are in, rather than providing coordinates.
+- Use google_search to check how is the weather.
+- Use google_search to recommend restaurants.
+- Use google_search to provide the most recent and relevant news from my current location.
 - Answer any questions the user may have, ensuring your responses are accurate and concise.
-
-Start each interaction by asking the user about which place they would like to know the information.
 """
 
 
 async def main():
-    """Main function to set up and run the movie explorer bot."""
     async with aiohttp.ClientSession() as session:
         (room_url, token) = await configure(session)
 
@@ -103,7 +93,7 @@ async def main():
             system_instruction=system_instruction,
             tools=tools,
         )
-        # llm.register_function("get_favorite_movies", get_movies)
+        llm.register_function("get_my_current_location", get_my_current_location)
 
         context = OpenAILLMContext(
             [{"role": "user", "content": "Start by greeting the user warmly, introducing yourself, and mentioning the current day. Be friendly and engaging to set a positive tone for the interaction."}],
