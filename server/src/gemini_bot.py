@@ -43,9 +43,10 @@ async def get_my_current_location(function_name, tool_call_id, args, llm, contex
         await result_callback({"success": False, "error": str(e)})
 
 async def set_restaurant_location(function_name, tool_call_id, arguments, llm, context, result_callback):
+    restaurant = arguments["restaurant"]
     lat = arguments["lat"]
     lon = arguments["lon"]
-    logger.debug(f"Calling set_restaurant_location with arguments {lat},{lon}")
+    logger.debug(f"Calling set_restaurant_location with arguments {restaurant}: {lat},{lon}")
     await result_callback({})
 
 tools = [
@@ -62,6 +63,10 @@ tools = [
                 "parameters": {
                     "type": "object",
                     "properties": {
+                        "restaurant": {
+                            "type": "string",
+                            "description": "Restaurant name",
+                        },
                         "lat": {
                             "type": "string",
                             "description": "Latitude of the location",
@@ -71,7 +76,7 @@ tools = [
                             "description": "Longitude of the location",
                         },
                     },
-                    "required": ["lat", "lon"],
+                    "required": ["restaurant", "lat", "lon"],
                 },
             },
         ],
