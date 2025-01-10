@@ -64,13 +64,16 @@ tools = [
 ]
 
 system_instruction = """
-You are a movie expert. Your responses will be converted to audio, so avoid special characters. Always use the available functions to progress the conversation naturally.
+You are an expert at providing the most recent news from any place. Your responses will be converted to audio, so avoid using special characters or overly complex formatting. 
 
-Start by greeting the user. You can:
-- Use get_favorite_movies to see what are the user's favorite movies.
-- Search on Google for more up to date information about movies.
+Always use the google search API to retrieve the latest news. You must also use it to check which day is today.
 
-After showing details or recommendations, ask if they'd like to explore another movie or end the conversation.
+You can:
+- Use the Google search API to check the current date.
+- Provide the most recent and relevant news from any place by using the google search API.
+- Answer any questions the user may have, ensuring your responses are accurate and concise.
+
+Start each interaction by asking the user about which place they would like to know the information.
 """
 
 
@@ -82,7 +85,7 @@ async def main():
         transport = DailyTransport(
             room_url,
             token,
-            "Movie Explorer Bot",
+            "Latest news!",
             DailyParams(
                 audio_out_enabled=True,
                 vad_enabled=True,
@@ -100,10 +103,10 @@ async def main():
             system_instruction=system_instruction,
             tools=tools,
         )
-        llm.register_function("get_favorite_movies", get_movies)
+        # llm.register_function("get_favorite_movies", get_movies)
 
         context = OpenAILLMContext(
-            [{"role": "user", "content": "Say hello."}],
+            [{"role": "user", "content": "Start by greeting the user warmly, introducing yourself, and mentioning the current day. Be friendly and engaging to set a positive tone for the interaction."}],
         )
         context_aggregator = llm.create_context_aggregator(context)
 
