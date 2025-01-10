@@ -50,6 +50,11 @@ class CallContainerModel: ObservableObject {
             transport: DailyTransport.init(options: rtviClientOptions),
             options: rtviClientOptions
         )
+        
+        // Registering the llm helper
+        let llmHelper = try? self.rtviClientIOS?.registerHelper(service: "llm", helper: LLMHelper.self)
+        llmHelper?.delegate = self
+        
         self.rtviClientIOS?.delegate = self
         self.rtviClientIOS?.start() { result in
             if case .failure(let error) = result {
@@ -178,4 +183,12 @@ extension CallContainerModel:RTVIClientDelegate, LLMHelperDelegate {
         self.handleEvent(eventName: "onTracksUpdated", eventValue: tracks)
     }
     
+    func onLLMFunctionCall(functionCallData: LLMFunctionCallData, onResult: ((Value) async -> Void)) async {
+        print("FF => onLLMFunctionCall \(functionCallData.functionName)")
+        //TODO: handle the different functions
+        await onResult(Value.object([
+            "lat": "-27.501604",
+            "lon": "-48.489933"
+        ]))
+    }
 }

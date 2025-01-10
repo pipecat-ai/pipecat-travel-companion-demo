@@ -17,6 +17,9 @@ from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
+from pipecat.services.cartesia import CartesiaTTSService
+from pipecat.services.deepgram import DeepgramSTTService
+from pipecat.services.google import GoogleLLMService
 from pipecat.services.gemini_multimodal_live.gemini import GeminiMultimodalLiveLLMService
 from pipecat.transports.services.daily import DailyParams, DailyTransport
 from pipecat.frames.frames import (
@@ -25,7 +28,7 @@ from pipecat.frames.frames import (
 from pipecat.processors.frameworks.rtvi import (
     RTVIBotTranscriptionProcessor,
     RTVIConfig,
-    RTVIMetricsProcessor,
+    RTVIBotLLMProcessor,
     RTVIProcessor,
     RTVISpeakingProcessor,
     RTVIUserTranscriptionProcessor,
@@ -89,7 +92,7 @@ tools = [
                 },
             },
         ],
-        'google_search': {}
+        #'google_search': {}
     }
 ]
 
@@ -123,17 +126,24 @@ async def main():
             ),
         )
 
-        # Initialize the Gemini Multimodal Live model
-        llm = GeminiMultimodalLiveLLMService(
+        stt = DeepgramSTTService(api_key=os.getenv("DEEPGRAM_API_KEY"))
+
+        tts = CartesiaTTSService(
+            api_key=os.getenv("CARTESIA_API_KEY"),
+            voice_id="79a125e8-cd45-4c13-8a67-188112f4dd22",  # British Lady
+        )
+
+        #llm = GeminiMultimodalLiveLLMService(
+        llm = GoogleLLMService(
+            model="models/gemini-2.0-flash-exp",
             api_key=os.getenv("GOOGLE_API_KEY"),
             voice_id="Puck",  # Aoede, Charon, Fenrir, Kore, Puck
-            transcribe_user_audio=True,
-            transcribe_model_audio=True,
             system_instruction=system_instruction,
             tools=tools,
         )
-        llm.register_function("get_my_current_location", get_my_current_location)
-        llm.register_function("set_restaurant_location", set_restaurant_location)
+        # local functions
+        #llm.register_function("get_my_current_location", get_my_current_location)
+        #llm.register_function("set_restaurant_location", set_restaurant_location)
 
         context = OpenAILLMContext(
             [{"role": "user", "content": """
@@ -144,18 +154,44 @@ async def main():
         )
         context_aggregator = llm.create_context_aggregator(context)
 
-        # TODO: add the RTVI events for Pipecat client UI
+        #
+        # RTVI events for Pipecat client UI
+        #
+
+        # This will send `user-*-speaking` and `bot-*-speaking` messages.
+        rtvi_speaking = RTVISpeakingProcessor()
+
+        # This will emit UserTranscript events.
+        rtvi_user_transcription = RTVIUserTranscriptionProcessor()
+
+        # This will emit BotTranscript events.
+        rtvi_bot_transcription = RTVIBotTranscriptionProcessor()
+
+        # This will send `bot-llm-*` messages.
+        rtvi_bot_llm = RTVIBotLLMProcessor()
 
         # Handles RTVI messages from the client
         rtvi = RTVIProcessor(config=RTVIConfig(config=[]))
 
+        # Registering the functions to be invoked by RTVI
+        llm.register_function(
+            None, rtvi.handle_function_call, start_callback=rtvi.handle_function_call_start
+        )
+
         pipeline = Pipeline(
             [
-                transport.input(),  # Transport user input
-                context_aggregator.user(),  # User responses
-                llm,  # LLM
-                transport.output(),  # Transport bot output
-                context_aggregator.assistant(),  # Assistant spoken responses
+                transport.input(),
+                stt,  # STT
+                rtvi,
+                context_aggregator.user(),
+                llm,
+                rtvi_bot_llm,
+                tts,  # TTS
+                rtvi_speaking,
+                rtvi_user_transcription,
+                rtvi_bot_transcription,
+                transport.output(),
+                context_aggregator.assistant(),
             ]
         )
 
