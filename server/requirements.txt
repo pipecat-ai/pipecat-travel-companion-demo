@@ -1,6 +1,5 @@
 pip-tools~=7.4.1
 pipecat-ai~=0.0.52
 pipecat-ai-flows~=0.0.10
-# TODO: need to check if we can remove deepgram, openai and cartesia from here
-pipecat-ai[daily,silero,google,deepgram,openai,cartesia,anthropic]
+pipecat-ai[daily,silero,google,openai]
 python-dotenv~=1.0.1
