@@ -36,11 +36,17 @@ async def get_my_current_location(function_name, tool_call_id, args, llm, contex
     logger.debug("Calling get_my_current_location")
     try:
         await result_callback({
-            "lat": "-27.501586",
-            "lon": "-48.489710"
+            "lat": "-27.501604",
+            "lon": "-48.489933"
         })
     except Exception as e:
         await result_callback({"success": False, "error": str(e)})
+
+async def set_restaurant_location(function_name, tool_call_id, arguments, llm, context, result_callback):
+    lat = arguments["lat"]
+    lon = arguments["lon"]
+    logger.debug(f"Calling set_restaurant_location with arguments {lat},{lon}")
+    await result_callback({})
 
 tools = [
     {
@@ -50,6 +56,24 @@ tools = [
                 "description": "Retrieves the user current location",
                 "parameters": None,  # Specify None for no parameters
             },
+            {
+                "name": "set_restaurant_location",
+                "description": "Sets the location of the chosen restaurant",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "lat": {
+                            "type": "string",
+                            "description": "Latitude of the location",
+                        },
+                        "lon": {
+                            "type": "string",
+                            "description": "Longitude of the location",
+                        },
+                    },
+                    "required": ["lat", "lon"],
+                },
+            },
         ],
         'google_search': {}
     }
@@ -57,12 +81,12 @@ tools = [
 
 system_instruction = """
 You are a travel companion. Your responses will be converted to audio, so avoid using special characters or overly complex formating. 
-Always use the google_search API to check which day is today. If there is a discrepancy always use the most recent date.
 
 You can:
 - Use get_my_current_location to retrieve my current location. When speaking to the user, inform them about the neighborhood and city they are in, rather than providing coordinates.
 - Use google_search to check how is the weather.
 - Use google_search to recommend restaurants.
+- Use set_restaurant_location to send to the user the location of the chosen restaurant.
 - Use google_search to provide the most recent and relevant news from my current location.
 - Answer any questions the user may have, ensuring your responses are accurate and concise.
 """
@@ -94,9 +118,14 @@ async def main():
             tools=tools,
         )
         llm.register_function("get_my_current_location", get_my_current_location)
+        llm.register_function("set_restaurant_location", set_restaurant_location)
 
         context = OpenAILLMContext(
-            [{"role": "user", "content": "Start by greeting the user warmly, introducing yourself, and mentioning the current day. Be friendly and engaging to set a positive tone for the interaction."}],
+            [{"role": "user", "content": """
+            Start by greeting the user warmly, and briefly introducing yourself. 
+            Use the google_search tool to retrieve the current date. If there's any discrepancy, prioritize the most recent date. 
+            Ensure you wait for the updated date before sharing it with the user in a friendly and conversational tone.
+            """}],
         )
         context_aggregator = llm.create_context_aggregator(context)
 
