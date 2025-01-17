@@ -124,9 +124,7 @@ async def main():
 
         context = OpenAILLMContext(
             [{"role": "user", "content": """
-            Start by briefly introduction yourself. 
-            Use the google_search tool to retrieve the current date. If there's any discrepancy, prioritize the most recent date. 
-            Ensure you wait for the updated date before sharing it with the user.
+            Start by briefly introduction yourself and tell me what you can do.
             """}],
         )
         context_aggregator = llm.create_context_aggregator(context)
